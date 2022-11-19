@@ -3,7 +3,7 @@ import socket
 
 
 host = '127.0.0.1'
-port = 55557
+port = 55556
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
@@ -24,7 +24,36 @@ def handle(client):
     while True:
         try:
             message = client.recv(1024)
-            # broadcast(message)
+
+            if message.decode('ascii') == '/quit':
+                index = clients.index(client)
+                clients.remove(client)
+                client.close()
+                nickname = nicknames[index]
+                clients_address = clients_addresses[index]
+                clients_port = clients_ports[index]
+
+                print(f'{nickname} disconnected')
+
+                nicknames.remove(nickname)
+                clients_addresses.remove(clients_address)
+                clients_ports.remove(clients_port)
+                
+
+                broadcast(f'{nickname} left the chat'.encode('ascii'))
+
+                
+
+                tabela = 'NICKNAME             ADDRESS             PORT\n'
+
+                for i in range(len(clients)):
+                        tabela = tabela + f'{nicknames[i]}              {clients_addresses[i]}              {clients_ports[i]}\n'
+                    
+
+                broadcast(tabela.encode('ascii'))
+                
+                break
+
         except:
             index = clients.index(client)
             clients.remove(client)
@@ -33,10 +62,12 @@ def handle(client):
             clients_address = clients_addresses[index]
             clients_port = clients_ports[index]
 
-            
+            print(f'{nickname} disconnected')
+
             nicknames.remove(nickname)
             clients_addresses.remove(clients_address)
             clients_ports.remove(clients_port)
+            
 
             broadcast(f'{nickname} left the chat'.encode('ascii'))
 
@@ -48,7 +79,7 @@ def handle(client):
                     tabela = tabela + f'{nicknames[i]}              {clients_addresses[i]}              {clients_ports[i]}\n'
                 
 
-            broadcast(tabela)
+            broadcast(tabela.encode('ascii'))
             
             break
 
@@ -81,7 +112,7 @@ def receive():
         broadcast(tabela.encode('ascii'))
         
         broadcast(f'{nickname} joined the chat'.encode('ascii'))
-        client.send('Connected to the server'.encode('ascii'))
+        client.send('\nConnected to the server'.encode('ascii'))
 
         thread = threading.Thread(target= handle, args=(client,))
         thread.start()

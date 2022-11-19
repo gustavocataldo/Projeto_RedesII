@@ -4,7 +4,7 @@ import socket
 
 nickname = input('Choose a nickname: ')
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect(('127.0.0.1', 55557))
+client.connect(('127.0.0.1', 55556))
 
 def receive():
     while True:
@@ -21,7 +21,7 @@ def receive():
 
 def write():
     while True:
-        message = f'{nickname}: {input("")}'
+        message = f'{input("")}'
         client.send(message.encode('ascii'))
     
 
