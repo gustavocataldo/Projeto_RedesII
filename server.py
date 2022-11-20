@@ -25,6 +25,7 @@ def handle(client):
         try:
             message = client.recv(1024)
 
+            # cliente encerrou a conexão -> removendo o cliente do servidor
             if message.decode('ascii') == '/quit':
                 index = clients.index(client)
                 clients.remove(client)
@@ -43,7 +44,7 @@ def handle(client):
                 broadcast(f'{nickname} left the chat'.encode('ascii'))
 
                 
-
+                # atualizar a tabela e fazer o broadcast desta
                 tabela = 'NICKNAME             ADDRESS             PORT\n'
 
                 for i in range(len(clients)):
@@ -55,6 +56,7 @@ def handle(client):
                 break
 
         except:
+            # erro na conexão de um cliente -> encerra a conexão
             index = clients.index(client)
             clients.remove(client)
             client.close()
@@ -92,8 +94,15 @@ def receive():
         
         print(f'Connected to {str(address)}')
 
-        client.send('NICK'.encode('ascii'))
-        nickname = client.recv(1024).decode('ascii')
+
+        # loop para verificar se já existe o nome de usuário cadastrado
+        while True:
+            client.send('NICK'.encode('ascii'))
+            nickname = client.recv(1024).decode('ascii')
+            if nickname in nicknames:
+                client.send('User invalid'.encode('ascii'))
+            else:
+                break
 
         print(f'Nickname of the client is {nickname}')
 
@@ -103,12 +112,13 @@ def receive():
         clients_ports.append(client_port)
         
 
+        # gerar a tabela com os usuários cadastrados
         tabela = 'NICKNAME             ADDRESS             PORT\n'
 
         for i in range(len(clients)):
                 tabela = tabela + f'{nicknames[i]}              {clients_addresses[i]}              {clients_ports[i]}\n'
             
-
+        # broadcast da tabela para todos os usuários
         broadcast(tabela.encode('ascii'))
         
         broadcast(f'{nickname} joined the chat'.encode('ascii'))
