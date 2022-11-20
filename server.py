@@ -12,7 +12,7 @@ server.listen()
 clients = []
 clients_addresses = []
 nicknames = []
-clients_ports = []
+clients_ports = []  
 
 
 def broadcast(message):
@@ -27,6 +27,7 @@ def handle(client):
 
             if message.decode('ascii') == '/quit':
                 index = clients.index(client)
+                client.send('CONNECTION_CLOSED'.encode('ascii'))
                 clients.remove(client)
                 client.close()
                 nickname = nicknames[index]
@@ -34,14 +35,12 @@ def handle(client):
                 clients_port = clients_ports[index]
 
                 print(f'{nickname} disconnected')
+                broadcast(f'{nickname} left the chat'.encode('ascii'))
+                
 
                 nicknames.remove(nickname)
                 clients_addresses.remove(clients_address)
                 clients_ports.remove(clients_port)
-                
-
-                broadcast(f'{nickname} left the chat'.encode('ascii'))
-
                 
 
                 tabela = 'NICKNAME             ADDRESS             PORT\n'
@@ -54,7 +53,7 @@ def handle(client):
                 
                 break
 
-        except:
+        except Exception as exc:
             index = clients.index(client)
             clients.remove(client)
             client.close()

@@ -1,32 +1,47 @@
 import threading
 import socket
 
-
+HOST_IP = '127.0.0.1'
+PORT = 55556
 nickname = input('Choose a nickname: ')
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect(('127.0.0.1', 55556))
 
-def receive():
+def handle_messages(conn: socket.socket):
     while True:
         try:
-            message = client.recv(1024).decode('ascii')
+            message = conn.recv(1024).decode('ascii')
             if message == 'NICK':
-                client.send(nickname.encode('ascii'))
+                conn.send(nickname.encode('ascii'))
+            elif message == 'CONNECTION_CLOSED':
+                break
             else:
-                print(f'\n{message}')
-        except:
-            print('ERROR')
-            client.close()
+                print(message)
+        except Exception as exc:
+            conn.close()
+            error_message = f'Houve um erro processando a mensagem do servidor | exc: {str(exc)}'
+            print(error_message)
             break
 
-def write():
-    while True:
-        message = f'{input("")}'
-        client.send(message.encode('ascii'))
-    
+def client() -> None:
+    try:
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect((HOST_IP, PORT))
+        thread = threading.Thread(target=handle_messages, args=[client_socket])
 
-receive_thread = threading.Thread(target=receive)
-receive_thread.start()
+        thread.start()
 
-write_thread = threading.Thread(target=write)
-write_thread.start()
+        while True:
+            msg = input()
+            client_socket.send(msg.encode('ascii'))
+            if msg == '/quit':
+                print('Conexão encerrada.')
+                break
+        
+        client_socket.close()
+
+    except Exception as exc:
+        error_message = f'Houve um erro durante a conexão com o servidor | exc: {str(exc)}'
+        print(error_message)
+        client_socket.close()
+
+
+client()
