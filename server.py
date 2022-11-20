@@ -23,8 +23,9 @@ def broadcast_registry_table(clients: Dict[str, Client]) -> str:
             tabela = tabela + f'{nickname}             {info.address}             {info.port}\n'
     broadcast(clients, tabela)
 
-def ask_for_client_nickname(client: socket.socket) -> str:
-    send_encoded_message(client, 'NICK')
+def ask_for_client_nickname(client: socket.socket, id: int) -> str:
+    msg = 'NICK' if id == 0 else 'NICKNAME_ALREADY_TAKEN'
+    send_encoded_message(client, msg)
     nickname = receive_decoded_message(client)
     print(f'Nickname of the client is {nickname}')
     return nickname
@@ -63,23 +64,21 @@ def receive(clients: Dict[str, Client]):
         client_port, client_address = address
         print(f'Connected to {str(address)}')
         
-        nickname = ask_for_client_nickname(client)
+        nickname = ask_for_client_nickname(client, 0)
         valid_nickname: bool = not nickname_already_taken(nickname, clients)
         
         while not valid_nickname:
-            send_encoded_message(client, 'NICKNAME_ALREADY_TAKEN')
-            nickname = ask_for_client_nickname(client)
+            nickname = ask_for_client_nickname(client, -1)
             valid_nickname = not nickname_already_taken(nickname, clients)
 
         clients.setdefault(nickname, Client(client, client_port, client_address, nickname))
-
-        broadcast_registry_table(clients)
-        broadcast(clients, message=f'{nickname} joined the chat.')
-
-        client.send('\nConnected to the server'.encode('ascii'))
+        send_encoded_message(client, 'CLIENT_CONNECTED\n')
 
         thread = threading.Thread(target=handle, args=(clients[nickname], clients))
         thread.start()
+
+        broadcast_registry_table(clients)
+        broadcast(clients, message=f'{nickname} joined the chat.')
 
 print('Server listening')
 receive(clients)
