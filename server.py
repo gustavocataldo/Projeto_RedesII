@@ -1,6 +1,7 @@
 import threading
 import socket
-
+from collections import namedtuple
+from typing import Dict
 
 host = '127.0.0.1'
 port = 55556
@@ -9,112 +10,66 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
 server.listen()
 
-clients = []
-clients_addresses = []
-nicknames = []
-clients_ports = []  
+Client = namedtuple('Client', ['socket', 'port', 'address', 'nickname'])
+clients: Dict[str, Client] = {}
 
+def broadcast(clients: Dict[str, Client], message: str):
+    for client_data in clients.values():
+        client_data.socket.send(message.encode('ascii'))
 
-def broadcast(message):
-    for client in clients:
-        client.send(message)
+def broadcast_registry_table(clients: Dict[str, Client]) -> str:
+    tabela = 'NICKNAME             ADDRESS             PORT\n'
+    for nickname, info in clients.items():
+            tabela = tabela + f'{nickname}             {info.address}             {info.port}\n'
+    broadcast(clients, tabela)
 
+def ask_for_client_nickname(client: socket.socket) -> str:
+    client.send('NICK'.encode('ascii'))
+    nickname = client.recv(1024).decode('ascii')
+    print(f'Nickname of the client is {nickname}')
+    return nickname
 
-def handle(client):
+def receive_decoded_message(client: socket.socket) -> str:
+    message = client.recv(1024)
+    return message.decode('ascii')
+
+def send_encoded_message(client: socket.socket, message: str):
+    client.send(message.encode('ascii'))
+
+def handle(client: Client, clients: Dict[str, Client]):
     while True:
         try:
-            message = client.recv(1024)
-
-            if message.decode('ascii') == '/quit':
-                index = clients.index(client)
-                client.send('CONNECTION_CLOSED'.encode('ascii'))
-                clients.remove(client)
-                client.close()
-                nickname = nicknames[index]
-                clients_address = clients_addresses[index]
-                clients_port = clients_ports[index]
-
-                print(f'{nickname} disconnected')
-                broadcast(f'{nickname} left the chat'.encode('ascii'))
-                
-
-                nicknames.remove(nickname)
-                clients_addresses.remove(clients_address)
-                clients_ports.remove(clients_port)
-                
-
-                tabela = 'NICKNAME             ADDRESS             PORT\n'
-
-                for i in range(len(clients)):
-                        tabela = tabela + f'{nicknames[i]}              {clients_addresses[i]}              {clients_ports[i]}\n'
-                    
-
-                broadcast(tabela.encode('ascii'))
+            client_socket: socket.socket = client.socket
+            message = receive_decoded_message(client_socket)
+            if message == '/quit':
+                send_encoded_message(client_socket, 'CONNECTION_CLOSED')
+                del clients[client.nickname]
+                client_socket.close()
+                print(f'{client.nickname} disconnected')
+                broadcast(clients, f'{client.nickname} left the chat'.encode('ascii'))
+                broadcast_registry_table(clients)
                 
                 break
 
         except Exception as exc:
-            index = clients.index(client)
-            clients.remove(client)
-            client.close()
-            nickname = nicknames[index]
-            clients_address = clients_addresses[index]
-            clients_port = clients_ports[index]
+            print(str(exc))
 
-            print(f'{nickname} disconnected')
-
-            nicknames.remove(nickname)
-            clients_addresses.remove(clients_address)
-            clients_ports.remove(clients_port)
-            
-
-            broadcast(f'{nickname} left the chat'.encode('ascii'))
-
-            
-
-            tabela = 'NICKNAME             ADDRESS             PORT\n'
-
-            for i in range(len(clients)):
-                    tabela = tabela + f'{nicknames[i]}              {clients_addresses[i]}              {clients_ports[i]}\n'
-                
-
-            broadcast(tabela.encode('ascii'))
-            
-            break
-
-def receive():
+def receive(clients: Dict[str, Client]):
     while True:
         client, address = server.accept()
-        client_port = address[1]
-        client_address = address[0]
-
-        
+        client_port, client_address = address
         print(f'Connected to {str(address)}')
-
-        client.send('NICK'.encode('ascii'))
-        nickname = client.recv(1024).decode('ascii')
-
-        print(f'Nickname of the client is {nickname}')
-
-        nicknames.append(nickname)
-        clients.append(client)
-        clients_addresses.append(client_address)
-        clients_ports.append(client_port)
         
+        nickname = ask_for_client_nickname(client)
+        clients.setdefault(nickname, Client(client, client_port, client_address, nickname))
 
-        tabela = 'NICKNAME             ADDRESS             PORT\n'
+        broadcast_registry_table(clients)
+        broadcast(clients, message=f'{nickname} joined the chat.')
 
-        for i in range(len(clients)):
-                tabela = tabela + f'{nicknames[i]}              {clients_addresses[i]}              {clients_ports[i]}\n'
-            
-
-        broadcast(tabela.encode('ascii'))
-        
-        broadcast(f'{nickname} joined the chat'.encode('ascii'))
         client.send('\nConnected to the server'.encode('ascii'))
 
-        thread = threading.Thread(target= handle, args=(client,))
+        thread = threading.Thread(target=handle, args=(clients[nickname], clients))
         thread.start()
 
 print('Server listening')
-receive()
+receive(clients)
