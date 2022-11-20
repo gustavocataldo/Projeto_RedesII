@@ -24,8 +24,8 @@ def broadcast_registry_table(clients: Dict[str, Client]) -> str:
     broadcast(clients, tabela)
 
 def ask_for_client_nickname(client: socket.socket) -> str:
-    client.send('NICK'.encode('ascii'))
-    nickname = client.recv(1024).decode('ascii')
+    send_encoded_message(client, 'NICK')
+    nickname = receive_decoded_message(client)
     print(f'Nickname of the client is {nickname}')
     return nickname
 
@@ -35,6 +35,9 @@ def receive_decoded_message(client: socket.socket) -> str:
 
 def send_encoded_message(client: socket.socket, message: str):
     client.send(message.encode('ascii'))
+
+def nickname_already_taken(nickname: str, clients: Dict[str, Client]) -> bool:
+    return nickname in clients.keys()
 
 def handle(client: Client, clients: Dict[str, Client]):
     while True:
@@ -61,6 +64,13 @@ def receive(clients: Dict[str, Client]):
         print(f'Connected to {str(address)}')
         
         nickname = ask_for_client_nickname(client)
+        valid_nickname: bool = not nickname_already_taken(nickname, clients)
+        
+        while not valid_nickname:
+            send_encoded_message(client, 'NICKNAME_ALREADY_TAKEN')
+            nickname = ask_for_client_nickname(client)
+            valid_nickname = not nickname_already_taken(nickname, clients)
+
         clients.setdefault(nickname, Client(client, client_port, client_address, nickname))
 
         broadcast_registry_table(clients)
