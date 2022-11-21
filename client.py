@@ -16,8 +16,9 @@ instrucoes = f"""
                 /quit: Sair da sala
                 /consulta <nickname>: Consultar os dados de outro usuário\n\n"""
 
-def initialize_udp_socket() -> socket.socket:
+def initialize_udp_socket(address: tuple) -> socket.socket:
     audio_client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    audio_client_socket.bind(address)
     return audio_client_socket
 
 def initialize_tcp_socket() -> socket.socket:
@@ -67,7 +68,7 @@ def handle_udp(udp_conn: socket.socket):
 def client() -> None:
     try:
         client_socket = initialize_tcp_socket()
-        udp_client_socket = initialize_udp_socket()
+        udp_client_socket = initialize_udp_socket(address=client_socket.getsockname())
         nickname_valid: bool = False
         my_info = None
         print(instrucoes)
@@ -85,15 +86,6 @@ def client() -> None:
                 nickname_valid = True
         
         if nickname_valid:
-            
-            while not my_info:
-                msg = client_socket.recv(1024).decode('ascii')
-                client_socket.send(('/consulta ' + nickname).encode('ascii'))
-                if msg.split('|')[0] == 'QUERY_RESULT':
-                    address, port, nickname = msg.split('|')[2].split('-')
-                    my_info = (address, port, nickname)
-                    udp_client_socket.bind((address, int(port)))
-
             udp_thread: threading.Thread = threading.Thread(target=handle_udp, args=[udp_client_socket])
             thread: threading.Thread = threading.Thread(target=handle_messages, args=[client_socket, udp_client_socket, nickname])
             thread.start()
