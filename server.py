@@ -40,6 +40,9 @@ def send_encoded_message(client: socket.socket, message: str):
 def nickname_already_taken(nickname: str, clients: Dict[str, Client]) -> bool:
     return nickname in clients.keys()
 
+def get_client_by_nickname(nickname: str, clients: Dict[str, Client]) -> Client:
+    return clients.get(nickname)
+
 def handle(client: Client, clients: Dict[str, Client]):
     while True:
         try:
@@ -54,6 +57,12 @@ def handle(client: Client, clients: Dict[str, Client]):
                 broadcast_registry_table(clients)
                 
                 break
+            
+            elif message.split()[0] == '/consulta':
+                nickname = message.split()[1]
+                _client: Client = get_client_by_nickname(nickname, clients)
+                client_msg = f'QUERY_RESULT|{client.port}-{client.address}' if _client else 'NICKNAME_NOT_FOUND'
+                send_encoded_message(client_socket, client_msg)
 
         except Exception as exc:
             print(str(exc))
