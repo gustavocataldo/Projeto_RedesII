@@ -3,7 +3,8 @@ import socket
 
 HOST_IP = '127.0.0.1'
 PORT = 5000
-
+UDP_PORT = 6000
+BUFFER_SIZE = 1024
 class ConexaoEncerrada(Exception):
     pass
 
@@ -12,14 +13,23 @@ instrucoes = f"""
                 /quit: Sair da sala
                 /consulta <nickname>: Consultar os dados de outro usuário\n\n"""
 
-def initialize_audio_client():
-    audio_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+def initialize_udp_socket() -> socket.socket:
+    audio_client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    audio_client_socket.connect((HOST_IP, UDP_PORT))
+    return audio_client_socket
 
-def close_socket(client_socket: socket.socket):
+def initialize_tcp_socket() -> socket.socket:
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((HOST_IP, PORT))
+    return client_socket
+
+def close_sockets(client_socket: socket.socket, udp_client: socket.socket):
     client_socket.shutdown(socket.SHUT_RDWR)
+    udp_client.shutdown(socket.SHUT_RDWR)
     client_socket.close()
+    udp_client.close()
 
-def handle_messages(conn: socket.socket):
+def handle_messages(conn: socket.socket, udp_conn: socket.socket, udp_thread: threading.Thread):
     while True:
         try:
             message = conn.recv(1024).decode('ascii')
@@ -28,16 +38,10 @@ def handle_messages(conn: socket.socket):
             elif message == 'NICKNAME_NOT_FOUND':
                 print('O usuário consultado não existe.')
             elif message.split('|')[0] == 'QUERY_RESULT':
-                address, port = message.split('|')[1].split('-')
+                port, address = message.split('|')[1].split('-')
                 print(f'Endereço: {address} | Porta: {port}')
-            elif message == 'USER_LEFT_THE_ROOM':
-                print('O usuário deixou a sala ou não existe no registro.')
-            elif message == 'INVITE_NOT_FOUND':
-                print('Não há um convite ativo deste usuário para você.')
-            elif message == 'INVITE_ACCEPTED':
-                print('Convite foi aceito. Inicializando client de áudio')
-            elif message == 'INVITE_REJECTED':
-                print('Usuário destino está ocupado')
+                udp_conn.connect((address, int(port)))
+                udp_thread.start()                
             else:
                 print(message)
         except Exception as exc:
@@ -45,10 +49,22 @@ def handle_messages(conn: socket.socket):
             print(error_message)
             break
 
+def handle_udp(udp_conn: socket.socket):
+    while True:
+        try:
+            msg, address = udp_conn.recvfrom(BUFFER_SIZE)
+            _msg = msg.split()
+            username, address, porta = _msg
+            if msg[0]== 'INVITE':
+                print(f'Você foi convidado para uma ligação com o usuário {username} ({address}, {porta}). Deseja aceitar?')
+        except Exception as exc:
+            print(str(exc))
+            break
+
 def client() -> None:
     try:
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect((HOST_IP, PORT))
+        client_socket = initialize_tcp_socket()
+        udp_client_socket = initialize_udp_socket()
         nickname_valid: bool = False
         print(instrucoes)
         while not nickname_valid:
@@ -64,7 +80,9 @@ def client() -> None:
                 nickname_valid = True
         
         if nickname_valid:
-            thread: threading.Thread = threading.Thread(target=handle_messages, args=[client_socket])
+
+            udp_thread: threading.Thread = threading.Thread(target=handle_udp, args=[udp_client_socket])
+            thread: threading.Thread = threading.Thread(target=handle_messages, args=[client_socket, udp_client_socket, udp_thread])
             thread.start()
 
             while True:
@@ -72,16 +90,20 @@ def client() -> None:
                 client_socket.send(msg.encode('ascii'))
                 if msg == '/quit':
                     thread.join()
+                    try:
+                        udp_thread.join()
+                    except:
+                        raise ConexaoEncerrada
                     raise ConexaoEncerrada
         
-        close_socket(client_socket)
+        close_sockets(client_socket, udp_client_socket)
     except ConexaoEncerrada:
         print('Conexão encerrada.')
-        close_socket(client_socket)
+        close_sockets(client_socket, udp_client_socket)
     except Exception as exc:
         error_message = f'Houve um erro durante a conexão com o servidor | exc: {str(exc)}'
         print(error_message)
-        close_socket(client_socket)
+        close_sockets(client_socket, udp_client_socket)
 
 
 

@@ -8,16 +8,12 @@ PORT = 5000
 UDP_PORT = 6000
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-def initialize_audio_server():
-    audio_server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    audio_server.bind(HOST, UDP_PORT)
-    audio_server.listen()
+udp_server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 server.bind((HOST, PORT))
 server.listen()
 
-Client = namedtuple('Client', ['socket', 'port', 'address', 'nickname', 'convites_recebidos', 'convites_enviados'])
+Client = namedtuple('Client', ['socket', 'udp_socket', 'port', 'address', 'nickname', 'convites_recebidos'])
 clients: Dict[str, Client] = {}
 
 def broadcast(clients: Dict[str, Client], message: str):
@@ -66,49 +62,26 @@ def handle(client: Client, clients: Dict[str, Client]):
                 broadcast_registry_table(clients)
                 
                 break
-            
+
             elif message.split()[0] == '/consulta':
                 nickname = message.split()[1]
                 _client: Client = get_client_by_nickname(nickname, clients)
                 client_msg = f'QUERY_RESULT|{client.port}-{client.address}' if _client else 'NICKNAME_NOT_FOUND'
                 send_encoded_message(client_socket, client_msg)
-            
-            elif message.split()[0] == '/convite':
-                nickname = message.split()[1]
-                _client: Client = get_client_by_nickname(nickname, clients)
-                if not _client:
-                    send_encoded_message(client.socket, 'NICKNAME_NOT_FOUND')
-                else:
-                    _message = f"Voce foi convidado para um voice chat com o usuario '{client.nickname}'. /aceitar_convite <nickname> ou /rejeitar_convite <nickname>"
-                    if nickname not in client.convites_recebidos: client.convites_recebidos.append(client.nickname)
-                    send_encoded_message(_client.socket, _message)
-            elif message.split()[0] == '/aceitar_convite':
-                nickname = message.split()[1]
-                _client: Client = get_client_by_nickname(nickname, clients)
-                if not _client:
-                    send_encoded_message(client.socket, 'USER_LEFT_THE_ROOM')
-                elif _client and nickname not in _client.convites_recebidos:
-                    send_encoded_message(client.socket, 'INVITE_NOT_FOUND')
-                else:
-                    send_encoded_message(_client.socket, 'INVITE_ACCEPTED')
-                    send_encoded_message(client.socket, 'INVITE_ACCEPTED')
-                    id_convite = _client.convites_recebidos.index(nickname)
-                    _client.convites_recebidos.pop(id_convite)
-
-            elif message.split()[0] == '/rejeitar_convite':
-                nickname = message.split()[1]
-                _client: Client = get_client_by_nickname(nickname, clients)
-                if not _client:
-                    send_encoded_message(client.socket, 'USER_LEFT_THE_ROOM')
-                elif _client and nickname in _client.convites_recebidos:
-                    id_convite = _client.convites_recebidos.index(nickname)
-                    _client.convites_recebidos.pop(id_convite)
-                    send_encoded_message(_client.socket, 'INVITE_REJECTED')
-
 
         except Exception as exc:
             print(str(exc))
             break
+
+def handle_udp(client: Client):
+    client.udp_socket.bind((HOST, client.port))
+    BUFFER_SIZE = 1024
+    while True:
+        bytes = udp_server.recvfrom(BUFFER_SIZE)
+        msg, address = bytes[0], bytes[1]
+        print(msg, address)
+        udp_server.sendto(msg, address)
+
 
 def receive(clients: Dict[str, Client]):
     while True:
@@ -123,11 +96,15 @@ def receive(clients: Dict[str, Client]):
             nickname = ask_for_client_nickname(client, -1)
             valid_nickname = not nickname_already_taken(nickname, clients)
 
-        clients.setdefault(nickname, Client(client, client_port, client_address, nickname, [], []))
+        
+        clients.setdefault(nickname, Client(client, udp_server, client_address, client_port, nickname, []))
+        udp_thread = threading.Thread(target=handle_udp, args=(clients[nickname],))
+       
         send_encoded_message(client, 'CLIENT_CONNECTED\n')
 
         thread = threading.Thread(target=handle, args=(clients[nickname], clients))
         thread.start()
+        udp_thread.start()
 
         broadcast_registry_table(clients)
         broadcast(clients, message=f'{nickname} joined the chat.')
