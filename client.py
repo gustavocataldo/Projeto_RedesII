@@ -30,7 +30,6 @@ def handle_messages(conn: socket.socket):
             else:
                 print(message)
         except Exception as exc:
-            conn.close()
             error_message = f'Houve um erro processando a mensagem do servidor | exc: {str(exc)}'
             print(error_message)
             break
@@ -61,7 +60,9 @@ def client() -> None:
                 msg = input()
                 client_socket.send(msg.encode('ascii'))
                 if msg == '/quit':
+                    thread.join()
                     raise ConexaoEncerrada
+        
         close_socket(client_socket)
     except ConexaoEncerrada:
         print('Conexão encerrada.')
