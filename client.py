@@ -12,6 +12,9 @@ instrucoes = f"""
                 /quit: Sair da sala
                 /consulta <nickname>: Consultar os dados de outro usuário\n\n"""
 
+def initialize_audio_client():
+    audio_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
 def close_socket(client_socket: socket.socket):
     client_socket.shutdown(socket.SHUT_RDWR)
     client_socket.close()
@@ -27,6 +30,14 @@ def handle_messages(conn: socket.socket):
             elif message.split('|')[0] == 'QUERY_RESULT':
                 address, port = message.split('|')[1].split('-')
                 print(f'Endereço: {address} | Porta: {port}')
+            elif message == 'USER_LEFT_THE_ROOM':
+                print('O usuário deixou a sala ou não existe no registro.')
+            elif message == 'INVITE_NOT_FOUND':
+                print('Não há um convite ativo deste usuário para você.')
+            elif message == 'INVITE_ACCEPTED':
+                print('Convite foi aceito. Inicializando client de áudio')
+            elif message == 'INVITE_REJECTED':
+                print('Usuário destino está ocupado')
             else:
                 print(message)
         except Exception as exc:
