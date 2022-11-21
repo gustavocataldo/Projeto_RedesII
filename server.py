@@ -70,6 +70,12 @@ def handle(client: Client, clients: Dict[str, Client]):
 
         except Exception as exc:
             print(str(exc))
+            nickname = client.nickname
+            if clients.get(nickname):
+                del clients[nickname]
+            broadcast(clients, f'{nickname} left the chat')
+            print(f'{nickname} left the chat')
+            broadcast_registry_table(clients)
             break
 
 def receive(clients: Dict[str, Client]):
