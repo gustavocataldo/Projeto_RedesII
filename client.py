@@ -4,10 +4,17 @@ import socket
 HOST_IP = '127.0.0.1'
 PORT = 5000
 
+class ConexaoEncerrada(Exception):
+    pass
+
 instrucoes = f"""
             Instruçoes de uso:
                 /quit: Sair da sala
                 /consulta <nickname>: Consultar os dados de outro usuário\n\n"""
+
+def close_socket(client_socket: socket.socket):
+    client_socket.shutdown(socket.SHUT_RDWR)
+    client_socket.close()
 
 def handle_messages(conn: socket.socket):
     while True:
@@ -47,23 +54,23 @@ def client() -> None:
                 nickname_valid = True
         
         if nickname_valid:
-            thread = threading.Thread(target=handle_messages, args=[client_socket])
+            thread: threading.Thread = threading.Thread(target=handle_messages, args=[client_socket])
             thread.start()
 
             while True:
                 msg = input()
                 client_socket.send(msg.encode('ascii'))
                 if msg == '/quit':
-                    print('Conexão encerrada.')
-                    break
-
-        
-        client_socket.close()
-
+                    raise ConexaoEncerrada
+        close_socket(client_socket)
+    except ConexaoEncerrada:
+        print('Conexão encerrada.')
+        close_socket(client_socket)
     except Exception as exc:
         error_message = f'Houve um erro durante a conexão com o servidor | exc: {str(exc)}'
         print(error_message)
-        client_socket.close()
+        close_socket(client_socket)
+
 
 
 client()

@@ -49,11 +49,13 @@ def handle(client: Client, clients: Dict[str, Client]):
             client_socket: socket.socket = client.socket
             message = receive_decoded_message(client_socket)
             if message == '/quit':
+                nickname_to_remove: str = client.nickname
+                print(f'{nickname_to_remove} disconnected')
                 send_encoded_message(client_socket, 'CONNECTION_CLOSED')
-                del clients[client.nickname]
-                client_socket.close()
-                print(f'{client.nickname} disconnected')
-                broadcast(clients, f'{client.nickname} left the chat'.encode('ascii'))
+                
+                del clients[nickname_to_remove]
+
+                broadcast(clients, f'{nickname_to_remove} left the chat')
                 broadcast_registry_table(clients)
                 
                 break
@@ -66,6 +68,7 @@ def handle(client: Client, clients: Dict[str, Client]):
 
         except Exception as exc:
             print(str(exc))
+            break
 
 def receive(clients: Dict[str, Client]):
     while True:
