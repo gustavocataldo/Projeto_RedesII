@@ -8,12 +8,11 @@ PORT = 5000
 UDP_PORT = 6000
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-udp_server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 server.bind((HOST, PORT))
 server.listen()
 
-Client = namedtuple('Client', ['socket', 'udp_socket', 'port', 'address', 'nickname', 'convites_recebidos'])
+Client = namedtuple('Client', ['socket', 'port', 'address', 'nickname'])
 clients: Dict[str, Client] = {}
 
 def broadcast(clients: Dict[str, Client], message: str):
@@ -66,22 +65,12 @@ def handle(client: Client, clients: Dict[str, Client]):
             elif message.split()[0] == '/consulta':
                 nickname = message.split()[1]
                 _client: Client = get_client_by_nickname(nickname, clients)
-                client_msg = f'QUERY_RESULT|{client.port}-{client.address}' if _client else 'NICKNAME_NOT_FOUND'
+                client_msg = f'QUERY_RESULT|{client.port}-{client.address}-{nickname}' if _client else 'NICKNAME_NOT_FOUND'
                 send_encoded_message(client_socket, client_msg)
 
         except Exception as exc:
             print(str(exc))
             break
-
-def handle_udp(client: Client):
-    client.udp_socket.bind((HOST, client.port))
-    BUFFER_SIZE = 1024
-    while True:
-        bytes = udp_server.recvfrom(BUFFER_SIZE)
-        msg, address = bytes[0], bytes[1]
-        print(msg, address)
-        udp_server.sendto(msg, address)
-
 
 def receive(clients: Dict[str, Client]):
     while True:
@@ -97,14 +86,12 @@ def receive(clients: Dict[str, Client]):
             valid_nickname = not nickname_already_taken(nickname, clients)
 
         
-        clients.setdefault(nickname, Client(client, udp_server, client_address, client_port, nickname, []))
-        udp_thread = threading.Thread(target=handle_udp, args=(clients[nickname],))
+        clients.setdefault(nickname, Client(socket=client, port=client_port, address=client_address, nickname=nickname))
        
         send_encoded_message(client, 'CLIENT_CONNECTED\n')
 
         thread = threading.Thread(target=handle, args=(clients[nickname], clients))
         thread.start()
-        udp_thread.start()
 
         broadcast_registry_table(clients)
         broadcast(clients, message=f'{nickname} joined the chat.')
