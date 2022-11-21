@@ -2,7 +2,7 @@ import threading
 import socket
 
 HOST_IP = '127.0.0.1'
-PORT = 55556
+PORT = 5000
 
 instrucoes = f"""
             Instruçoes de uso:

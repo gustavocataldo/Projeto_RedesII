@@ -3,11 +3,11 @@ import socket
 from collections import namedtuple
 from typing import Dict
 
-host = '127.0.0.1'
-port = 55556
+HOST = '127.0.0.1'
+PORT = 5000
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind((host, port))
+server.bind((HOST, PORT))
 server.listen()
 
 Client = namedtuple('Client', ['socket', 'port', 'address', 'nickname'])
