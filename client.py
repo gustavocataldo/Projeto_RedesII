@@ -1,14 +1,18 @@
 import threading
 import socket
 import queue
+import pyaudio
+
 
 HOST_IP = '127.0.0.1'
 PORT = 5000
 BUFFER_SIZE = 1024
 
-connections_must_be_closed = threading.Event()
+frames = []
 
+connections_must_be_closed = threading.Event()
 nickname = None
+
 class ConexaoEncerrada(Exception):
     pass
 
@@ -16,6 +20,34 @@ instrucoes = f"""
             Instruçoes de uso:
                 /quit: Sair da sala
                 /consulta <nickname>: Consultar os dados de outro usuário\n\n"""
+
+
+def return_audio_stream(input=False):
+
+    return pyaudio.PyAudio().open(
+        format = pyaudio.paInt16,
+        channels= 1,
+        rate = 44100,
+        output=not input,
+        input = input,
+        frames_per_buffer=BUFFER_SIZE
+    )
+
+def record_audio(stream):
+    while True:
+        frames.append(stream.read(BUFFER_SIZE))
+
+def stream_audio(udp_socket: socket.socket, address: tuple):
+    while True:
+        if len(frames) > 0:
+            udp_socket.sendto(frames.pop(0), address)
+
+def play_audio(stream):
+    while True:
+        if len(frames) == 10:
+            while True:
+                if frames:
+                    stream.write(frames.pop(0), BUFFER_SIZE)
 
 def initialize_udp_socket(address: tuple) -> socket.socket:
     audio_client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -60,18 +92,34 @@ def handle_udp(udp_conn: socket.socket, queue: queue.Queue):
     while True:
         try:
             if connections_must_be_closed.is_set(): break
-            msg, address = udp_conn.recvfrom(BUFFER_SIZE)
-            _msg = msg.decode('ascii').split('-')
-            if _msg[0]== 'INVITE':
-                client_address, porta, username = eval(_msg[1])
+            msg, address = udp_conn.recvfrom(int(BUFFER_SIZE*2))
+            if len(msg) < BUFFER_SIZE * 2:
+                msg = msg.decode('ascii').split('-')
+            if msg[0]== 'INVITE':
+                client_address, porta, username = eval(msg[1])
                 print(f'Você foi convidado para uma ligação com o usuário {username} ({client_address}, {porta}). Deseja aceitar? ( /aceitar ou /rejeitar )')
                 resposta = queue.get()
                 if resposta == '/aceitar':
                     print('Convite aceito. Inicializando chamada de voz...')
-                udp_conn.sendto((resposta+f'-{(client_address,porta)}-').encode('ascii'), address)
-            elif _msg[0] == '/aceitar':
+                    udp_conn.sendto((resposta+f'-{(client_address,porta)}-').encode('ascii'), address)
+                    audio_stream = return_audio_stream(input=True)
+                    threading.Thread(target=record_audio, args=[audio_stream]).start()
+                    threading.Thread(target=stream_audio, args=[udp_conn, address]).start()
+                    output_audio_stream = return_audio_stream(input=False)
+                    threading.Thread(target=play_audio, args=[output_audio_stream]).start()
+
+            elif msg[0] == '/aceitar':
                 print('Seu convite foi aceito. Inicializando chamada de voz...')
-            elif _msg[0] == '/rejeitar':
+                audio_stream = return_audio_stream(input=True)
+                threading.Thread(target=record_audio, args=[audio_stream]).start()
+                threading.Thread(target=stream_audio, args=[udp_conn, address]).start()
+                output_audio_stream = return_audio_stream(input=False)
+                threading.Thread(target=play_audio, args=[output_audio_stream]).start()
+
+                while queue.get() != '/encerrar_ligacao':
+                    pass
+                print('Ligação de áudio finalizada.')
+            elif msg[0] == '/rejeitar':
                 print('O usuário está ocupado no momento.')
         except Exception as exc:
             pass
