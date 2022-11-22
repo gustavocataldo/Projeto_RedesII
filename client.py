@@ -108,6 +108,14 @@ def handle_udp(udp_conn: socket.socket, queue: queue.Queue):
                     output_audio_stream = return_audio_stream(input=False)
                     threading.Thread(target=play_audio, args=[output_audio_stream]).start()
 
+                    while queue.get() != '/encerrar_ligacao':
+                        pass
+                    print('Ligação de áudio finalizada.')
+                    audio_stream.stop_stream()
+                    output_audio_stream.stop_stream()
+                    audio_stream.close()
+                    output_audio_stream.close()
+
             elif msg[0] == '/aceitar':
                 print('Seu convite foi aceito. Inicializando chamada de voz...')
                 audio_stream = return_audio_stream(input=True)
@@ -119,6 +127,11 @@ def handle_udp(udp_conn: socket.socket, queue: queue.Queue):
                 while queue.get() != '/encerrar_ligacao':
                     pass
                 print('Ligação de áudio finalizada.')
+                audio_stream.stop_stream()
+                output_audio_stream.stop_stream()
+                audio_stream.close()
+                output_audio_stream.close()
+                
             elif msg[0] == '/rejeitar':
                 print('O usuário está ocupado no momento.')
         except Exception as exc:
