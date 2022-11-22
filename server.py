@@ -5,7 +5,6 @@ from typing import Dict, List
 
 HOST = '127.0.0.1'
 PORT = 5000
-UDP_PORT = 6000
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
