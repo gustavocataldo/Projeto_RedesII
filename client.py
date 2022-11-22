@@ -1,5 +1,6 @@
 import threading
 import socket
+import queue
 
 HOST_IP = '127.0.0.1'
 PORT = 5000
@@ -42,10 +43,12 @@ def handle_messages(conn: socket.socket, udp_conn: socket.socket, my_nickname: s
             elif message == 'NICKNAME_NOT_FOUND':
                 print('O usuário consultado não existe.')
             elif message.split('|')[0] == 'QUERY_RESULT':
-                address, port, nickname = message.split('|')[1].split('-')
+                found_client = message.split('|')[1].split('-')
+                address, port, nickname = found_client
                 print(f'Endereço: {address} | Porta: {port}')
                 if nickname != my_nickname:
-                    udp_conn.sendto(str.encode('testeee'), (address, int(port)))
+                    print('Enviando um convite para chamada de voz ao usuário!')
+                    udp_conn.sendto(str.encode(f'INVITE-{str(found_client)}'), (address, int(port)))
             else:
                 print(message)
         except Exception as exc:
@@ -53,24 +56,40 @@ def handle_messages(conn: socket.socket, udp_conn: socket.socket, my_nickname: s
             print(error_message)
             break
 
-def handle_udp(udp_conn: socket.socket):
+def handle_udp(udp_conn: socket.socket, queue: queue.Queue):
     while True:
         try:
             if connections_must_be_closed.is_set(): break
             msg, address = udp_conn.recvfrom(BUFFER_SIZE)
-            _msg = msg.split()
-            username, address, porta = _msg
-            if msg[0]== 'INVITE':
-                print(f'Você foi convidado para uma ligação com o usuário {username} ({address}, {porta}). Deseja aceitar?')
+            _msg = msg.decode('ascii').split('-')
+            if _msg[0]== 'INVITE':
+                client_address, porta, username = eval(_msg[1])
+                print(f'Você foi convidado para uma ligação com o usuário {username} ({client_address}, {porta}). Deseja aceitar? ( /aceitar ou /rejeitar )')
+                resposta = queue.get()
+                if resposta == '/aceitar':
+                    print('Convite aceito. Inicializando chamada de voz...')
+                udp_conn.sendto((resposta+f'-{(client_address,porta)}-').encode('ascii'), address)
+            elif _msg[0] == '/aceitar':
+                print('Seu convite foi aceito. Inicializando chamada de voz...')
+            elif _msg[0] == '/rejeitar':
+                print('O usuário está ocupado no momento.')
         except Exception as exc:
             pass
+
+def handle_input(tcp_socket: socket.socket, queue: queue.Queue):
+    while True:
+        msg = input()
+        queue.put(msg)
+        tcp_socket.send(msg.encode('ascii'))
+        if msg == '/quit' or connections_must_be_closed.is_set():
+            print('Conexao encerrada')
+            break
 
 def client() -> None:
     try:
         client_socket = initialize_tcp_socket()
         udp_client_socket = initialize_udp_socket(address=client_socket.getsockname())
         nickname_valid: bool = False
-        my_info = None
         print(instrucoes)
 
         while not nickname_valid:
@@ -86,25 +105,15 @@ def client() -> None:
                 nickname_valid = True
         
         if nickname_valid:
-            udp_thread: threading.Thread = threading.Thread(target=handle_udp, args=[udp_client_socket])
-            thread: threading.Thread = threading.Thread(target=handle_messages, args=[client_socket, udp_client_socket, nickname])
-            thread.start()
-            udp_thread.start()
+            msg_queue = queue.Queue()
 
-            while True:
-                msg = input()
-                client_socket.send(msg.encode('ascii'))
-                if msg == '/quit':
-                    thread.join()
-                    try:
-                        udp_thread.join()
-                    except:
-                        raise ConexaoEncerrada
-                    raise ConexaoEncerrada
-        
-        close_sockets(client_socket, udp_client_socket)
-    except ConexaoEncerrada:
-        print('Conexão encerrada.')
+            threading.Thread(target=handle_messages, args=[client_socket, udp_client_socket, nickname]).start()
+            threading.Thread(target=handle_input, args=[client_socket, msg_queue]).start()            
+            threading.Thread(target=handle_udp, args=[udp_client_socket, msg_queue]).start()
+
+            while not connections_must_be_closed.is_set():
+                pass
+                
         close_sockets(client_socket, udp_client_socket)
     except Exception as exc:
         error_message = f'Houve um erro durante a conexão com o servidor | exc: {str(exc)}'
