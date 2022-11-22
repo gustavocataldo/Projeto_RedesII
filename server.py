@@ -22,7 +22,7 @@ def broadcast(clients: Dict[str, Client], message: str):
 def broadcast_registry_table(clients: Dict[str, Client]) -> str:
     tabela = 'NICKNAME             ADDRESS             PORT\n'
     for nickname, info in clients.items():
-            tabela = tabela + f'{nickname}             {info.address}             {info.port}\n'
+            tabela = tabela + f'{nickname}             {info.port}             {info.address}\n'
     broadcast(clients, tabela)
 
 def ask_for_client_nickname(client: socket.socket, id: int) -> str:
