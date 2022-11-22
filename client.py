@@ -13,6 +13,11 @@ frames = []
 connections_must_be_closed = threading.Event()
 nickname = None
 must_kill_audio_threads = threading.Event()
+must_start_audio_threads = threading.Event()
+
+client_address = None
+
+audio_queue = queue.Queue(maxsize=20000)
 
 
 class ConexaoEncerrada(Exception):
@@ -26,39 +31,40 @@ instrucoes = f"""
 
 
 def return_audio_stream(input=False):
-
-    return pyaudio.PyAudio().open(
-        format=pyaudio.paInt16,
-        channels=1,
-        rate=44100,
-        output=not input,
-        input=input,
-        frames_per_buffer=BUFFER_SIZE
-    )
+    if input:
+        return pyaudio.PyAudio().open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=44100,
+            input=True,
+            frames_per_buffer=BUFFER_SIZE
+        )
+    else:
+        return pyaudio.PyAudio().open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=44100,
+            output=True,
+            frames_per_buffer=BUFFER_SIZE
+        )
 
 
 def record_audio(stream):
     while True:
-        frames.append(stream.read(BUFFER_SIZE))
+        audio_queue.put(stream.read(BUFFER_SIZE))
 
 
 def stream_audio(udp_socket: socket.socket, address: tuple):
     while True:
-        if len(frames) > 0:
-            try:
-                udp_socket.sendto(frames.pop(0), address)
-            except IndexError:
-                pass
+        if audio_queue.qsize() > 0:
+            udp_socket.sendto(audio_queue.get(), address)
 
 
 def play_audio(stream):
     while True:
-        if len(frames) == 10:
+        if audio_queue.qsize() > 10:
             while True:
-                try:
-                    stream.write(frames.pop(0), BUFFER_SIZE)
-                except IndexError:
-                    pass
+                stream.write(audio_queue.get(), BUFFER_SIZE)
 
 
 def initialize_udp_socket(address: tuple) -> socket.socket:
@@ -97,8 +103,6 @@ def handle_messages(conn: socket.socket, udp_conn: socket.socket, my_nickname: s
                     print('Enviando um convite para chamada de voz ao usuário!')
                     udp_conn.sendto(str.encode(
                         f'INVITE-{my_nickname}'), (address, int(port)))
-            else:
-                print(message)
         except Exception as exc:
             error_message = f'Houve um erro processando a mensagem do servidor | exc: {str(exc)}'
             print(error_message)
@@ -133,27 +137,13 @@ def handle_udp(udp_conn: socket.socket, queue: queue.Queue):
                 my_address = udp_conn.getsockname()
                 print(f'ORIGEM: {my_address} | DESTINO: {address_destino}')
                 print('Convite aceito! Inicializando chamada de voz...')
-                initialize_audio_threads(udp_conn, address_destino)
-
-                while queue.get() != '/encerrar_ligacao':
-                    pass
-
-                print('Ligação encerrada.')
-                must_kill_audio_threads.set()
-
+                global client_address
+                client_address = address_destino
+                must_start_audio_threads.set()
             elif msg[0] == '/rejeitar':
                 print('O usuário está ocupado no momento.')
         except Exception as exc:
             pass
-
-
-def initialize_audio_threads(udp_socket: socket.socket, address_destino: tuple):
-    audio_stream = return_audio_stream(input=True)
-    threading.Thread(target=record_audio, args=[audio_stream]).start()
-    threading.Thread(target=stream_audio, args=[
-                     udp_socket, address_destino]).start()
-    output_audio_stream = return_audio_stream(input=False)
-    threading.Thread(target=play_audio, args=[output_audio_stream]).start()
 
 
 def handle_input(tcp_socket: socket.socket, queue: queue.Queue):
@@ -197,7 +187,17 @@ def client() -> None:
                              udp_client_socket, msg_queue]).start()
 
             while not connections_must_be_closed.is_set():
-                pass
+                if must_start_audio_threads.is_set():
+                    output_audio_stream = return_audio_stream(input=False)
+                    threading.Thread(target=play_audio, args=[
+                                     output_audio_stream]).start()
+
+                    audio_stream = return_audio_stream(input=True)
+                    threading.Thread(target=record_audio, args=[
+                                     audio_stream]).start()
+                    threading.Thread(target=stream_audio, args=[
+                        udp_client_socket, client_address]).start()
+                    must_start_audio_threads.clear()
 
         close_sockets(client_socket, udp_client_socket)
     except Exception as exc:
