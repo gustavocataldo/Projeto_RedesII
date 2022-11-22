@@ -46,8 +46,10 @@ def play_audio(stream):
     while True:
         if len(frames) == 10:
             while True:
-                if frames:
+                try:
                     stream.write(frames.pop(0), BUFFER_SIZE)
+                except IndexError:
+                    pass
 
 def initialize_udp_socket(address: tuple) -> socket.socket:
     audio_client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
