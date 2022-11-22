@@ -106,6 +106,8 @@ def handle_messages(conn: socket.socket, udp_conn: socket.socket, my_nickname: s
                     print('Enviando um convite para chamada de voz ao usuário!')
                     udp_conn.sendto(str.encode(
                         f'INVITE-{my_nickname}'), (address, int(port)))
+            else:
+                print(message)
         except Exception as exc:
             error_message = f'Houve um erro processando a mensagem do servidor | exc: {str(exc)}'
             print(error_message)
