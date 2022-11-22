@@ -19,6 +19,7 @@ client_address = None
 
 audio_queue = queue.Queue(maxsize=20000)
 
+audio = pyaudio.PyAudio()
 
 class ConexaoEncerrada(Exception):
     pass
@@ -35,7 +36,7 @@ instrucoes = f"""
 
 def return_audio_stream(input=False):
     if input:
-        return pyaudio.PyAudio().open(
+        return audio.open(
             format=pyaudio.paInt16,
             channels=1,
             rate=44100,
@@ -43,7 +44,7 @@ def return_audio_stream(input=False):
             frames_per_buffer=BUFFER_SIZE
         )
     else:
-        return pyaudio.PyAudio().open(
+        return audio.open(
             format=pyaudio.paInt16,
             channels=1,
             rate=44100,
@@ -87,6 +88,7 @@ def close_sockets(client_socket: socket.socket, udp_client: socket.socket):
     udp_client.shutdown(socket.SHUT_RDWR)
     client_socket.close()
     udp_client.close()
+    audio.terminate()
 
 
 def handle_messages(conn: socket.socket, udp_conn: socket.socket, my_nickname: str):
