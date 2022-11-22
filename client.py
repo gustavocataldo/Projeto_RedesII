@@ -26,8 +26,11 @@ class ConexaoEncerrada(Exception):
 
 instrucoes = f"""
             Instruçoes de uso:
-                /quit: Sair da sala
-                /consulta <nickname>: Consultar os dados de outro usuário\n\n"""
+                - /quit: Sair da sala
+                - /consulta <nickname>: Consultar os dados de outro usuário e, caso o usuário exista,
+                    enviar um convite para a ligação de voz com o mesmo.
+                - /encerrar_ligacao: Encerrar uma ligação de voz a qualquer momento.
+                \n\n"""
 
 
 def return_audio_stream(input=False):
