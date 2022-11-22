@@ -106,6 +106,8 @@ def handle_messages(conn: socket.socket, udp_conn: socket.socket, my_nickname: s
                     print('Enviando um convite para chamada de voz ao usuário!')
                     udp_conn.sendto(str.encode(
                         f'INVITE-{my_nickname}'), (address, int(port)))
+            else:
+                print(message)
         except Exception as exc:
             error_message = f'Houve um erro processando a mensagem do servidor | exc: {str(exc)}'
             print(error_message)
@@ -132,6 +134,7 @@ def handle_udp(udp_conn: socket.socket, queue: queue.Queue):
                     udp_conn.sendto(
                         f'/convite_aceito-{sender_address}'.encode('ascii'), udp_conn.getsockname())
                 else:
+                    print('Chamada rejeitada.')
                     udp_conn.sendto(
                         '/rejeitar'.encode('ascii'), sender_address)
 
@@ -139,7 +142,7 @@ def handle_udp(udp_conn: socket.socket, queue: queue.Queue):
                 address_destino = eval(msg[1])
                 my_address = udp_conn.getsockname()
                 print(f'ORIGEM: {my_address} | DESTINO: {address_destino}')
-                print('Convite aceito! Inicializando chamada de voz...')
+                print('Convite aceito! Inicializando chamada de voz... Para encerrar a ligacao digite /encerrar_ligacao')
                 global client_address
                 client_address = address_destino
                 must_start_audio_threads.set()
