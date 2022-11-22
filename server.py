@@ -64,7 +64,7 @@ def handle(client: Client, clients: Dict[str, Client]):
             elif message.split()[0] == '/consulta':
                 nickname = message.split()[1]
                 _client: Client = get_client_by_nickname(nickname, clients)
-                client_msg = (f'QUERY_RESULT|{_client.port}-{_client.address}-{nickname}|{client.port}-{client.address}-{client.nickname}' if _client else 'NICKNAME_NOT_FOUND')
+                client_msg = (f'QUERY_RESULT|{_client.port}-{_client.address}-{nickname}' if _client else 'NICKNAME_NOT_FOUND')
                 send_encoded_message(client_socket, client_msg)
 
         except Exception as exc:
