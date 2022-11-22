@@ -104,7 +104,7 @@ def handle_udp(udp_conn: socket.socket, queue: queue.Queue):
                     udp_conn.sendto((resposta+f'-{(client_address,porta)}-').encode('ascii'), address)
                     audio_stream = return_audio_stream(input=True)
                     threading.Thread(target=record_audio, args=[audio_stream]).start()
-                    threading.Thread(target=stream_audio, args=[udp_conn, address]).start()
+                    threading.Thread(target=stream_audio, args=[udp_conn, (client_address, int(porta))]).start()
                     output_audio_stream = return_audio_stream(input=False)
                     threading.Thread(target=play_audio, args=[output_audio_stream]).start()
 
