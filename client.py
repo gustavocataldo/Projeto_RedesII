@@ -30,7 +30,6 @@ instrucoes = f"""
                 - /quit: Sair da sala
                 - /consulta <nickname>: Consultar os dados de outro usuário e, caso o usuário exista,
                     enviar um convite para a ligação de voz com o mesmo.
-                - /encerrar_ligacao: Encerrar uma ligação de voz a qualquer momento.
                 \n\n"""
 
 
@@ -54,21 +53,29 @@ def return_audio_stream(input=False):
 
 
 def record_audio(stream):
-    while True:
-        audio_queue.put(stream.read(BUFFER_SIZE))
-
+    try:
+        while True:
+            audio_queue.put(stream.read(BUFFER_SIZE))
+    except Exception:
+        pass
 
 def stream_audio(udp_socket: socket.socket, address: tuple):
-    while True:
-        if audio_queue.qsize() > 0:
-            udp_socket.sendto(audio_queue.get(), address)
-
+    try:
+        while True:
+            if audio_queue.qsize() > 0:
+                udp_socket.sendto(audio_queue.get(), address)
+    except Exception:
+        pass
 
 def play_audio(stream):
-    while True:
-        if audio_queue.qsize() > 10:
-            while True:
-                stream.write(audio_queue.get(), BUFFER_SIZE)
+    try:
+        while True:
+            if audio_queue.qsize() > 10:
+                while True:
+                    
+                        stream.write(audio_queue.get(), BUFFER_SIZE)
+    except Exception:
+        pass
 
 
 def initialize_udp_socket(address: tuple) -> socket.socket:
@@ -144,7 +151,7 @@ def handle_udp(udp_conn: socket.socket, queue: queue.Queue):
                 address_destino = eval(msg[1])
                 my_address = udp_conn.getsockname()
                 print(f'ORIGEM: {my_address} | DESTINO: {address_destino}')
-                print('Convite aceito! Inicializando chamada de voz... Para encerrar a ligacao digite /encerrar_ligacao')
+                print('Convite aceito! Inicializando chamada de voz... Para encerrar a ligação digite /quit. Você sairá do servidor também.')
                 global client_address
                 client_address = address_destino
                 must_start_audio_threads.set()
@@ -207,7 +214,10 @@ def client() -> None:
                         udp_client_socket, client_address]).start()
                     must_start_audio_threads.clear()
 
-        close_sockets(client_socket, udp_client_socket)
+        try:
+            close_sockets(client_socket, udp_client_socket)
+        except Exception:
+            pass
     except Exception as exc:
         error_message = f'Houve um erro durante a conexão com o servidor | exc: {str(exc)}'
         print(error_message)
